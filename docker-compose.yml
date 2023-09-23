@@ -1,0 +1,64 @@
+version: "3.6"
+
+services:
+  gitlab:
+    image: "gitlab/gitlab-ce:16.4.0-ce.0"
+    restart: always
+    hostname: "${PUBLIC_URL}"
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'https://${PUBLIC_URL}'
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+        nginx['proxy_set_headers'] = {
+          "X-Forwarded-Proto" => "https",
+          "X-Forwarded-Ssl" => "on",
+          "Host" => "git.example.com",
+          "X-Real-IP" => "$$remote_addr",
+          "X-Forwarded-For" => "$$proxy_add_x_forwarded_for",
+          "Upgrade" => "$$http_upgrade",
+          "Connection" => "$$connection_upgrade"
+        }
+        nginx['client_max_body_size'] = '0'
+        registry_external_url 'https://registry.${PUBLIC_URL}'
+        registry['enable'] = true
+        registry_nginx['enable'] = true
+        registry_nginx['listen_port'] = 5555
+        registry_nginx['listen_https'] = false
+        registry_nginx['proxy_set_headers'] = {
+          "X-Forwarded-Proto" => "https",
+          "X-Forwarded-Ssl" => "on",
+          "Host" => "registry.example.com",
+          "X-Real-IP" => "$$remote_addr",
+          "X-Forwarded-For" => "$$proxy_add_x_forwarded_for",
+          "Upgrade" => "$$http_upgrade",
+          "Connection" => "$$connection_upgrade"
+        }
+        registry_nginx['ssl_certificate'] = "/etc/gitlab/ssl/registry.${PUBLIC_URL}.crt"
+        registry_nginx['ssl_certificate_key'] = "/etc/gitlab/ssl/registry.${PUBLIC_URL}.key"
+        gitlab_rails['smtp_openssl_verify_mode'] = 'none'
+        gitlab_rails['smtp_enable'] = true
+        gitlab_rails['smtp_address'] = '${SMPT_HOST}'
+        gitlab_rails['smtp_port'] = '${SMPT_PORT}'
+        gitlab_rails['smtp_user_name'] = "{SMTP_USER}"
+        gitlab_rails['smtp_password'] = "{SMTP_PASS}"
+        gitlab_rails['smtp_domain'] = '${SMPT_HOST}'
+        gitlab_rails['smtp_authentication'] = 'login'
+        gitlab_rails['smtp_enable_starttls_auto'] = true
+        gitlab_rails['smtp_tls'] = false
+        gitlab_rails['smtp_openssl_verify_mode'] = 'peer'
+        gitlab_rails['gitlab_email_from'] = 'noreply-gitlab@${PUBLIC_URL}'
+        gitlab_rails['gitlab_email_reply_to'] = 'gitlab@${PUBLIC_URL}'
+    ports:
+      - "8080:80"
+      - "22:22"
+      - "5555:5555"
+    volumes:
+      - "${PWD}/gitlab/config:/etc/gitlab"
+      - "${PWD}/gitlab/logs:/var/log/gitlab"
+      - "${PWD}/gitlab/data:/var/opt/gitlab"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
